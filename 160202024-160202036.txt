@@ -1,0 +1,471 @@
+#include <stdint.h>
+#include "inc/tm4c123gh6pm.h"
+#include <stdio.h>
+
+#define LINE1 0x80 //First Line of LCD1602
+#define LINE2 0xC0 //Second Line of LCD1602
+//#define CMDPORT GPIO_PORTF_DATA_R
+
+void LCD1602_Init(void);
+
+void LCD1602_Clear(void);
+
+void LCD1602_DisplayChar(unsigned char CHAR);
+
+void LCD1602_DisplayDec(unsigned int number);
+
+void LCD1602_DisplayPosition(unsigned char Line,unsigned int digit);
+
+//void Reset(int c,int i);
+
+
+#define LED pin_b7
+#define RW 0x20  //PA5
+#define RS 0x40  //PA6
+#define E  0x80  //PA7
+
+void GPIO_PortAB_Init(void){
+    volatile unsigned long delay;
+    //Initial PA7/PA6/PA5
+    SYSCTL_RCGC2_R |= 0x00000001;
+    delay = SYSCTL_RCGC2_R;
+    GPIO_PORTA_AMSEL_R &= ~0xE0;
+    GPIO_PORTA_PCTL_R &= ~0xFFF00000;
+    GPIO_PORTA_DIR_R |= 0xE0;
+    GPIO_PORTA_AFSEL_R &= ~0xE0;
+    GPIO_PORTA_DEN_R |= 0xE0;
+    GPIO_PORTA_DR8R_R |= 0xE0;
+
+    //Initial PB7 ~ 0
+    SYSCTL_RCGC2_R |= 0x00000002;
+    delay = SYSCTL_RCGC2_R;
+    GPIO_PORTB_AMSEL_R &= ~0xFF;
+    GPIO_PORTB_PCTL_R &= ~0xFFFFFFFF;
+    GPIO_PORTB_DIR_R |= 0xFF;
+    GPIO_PORTB_AFSEL_R &= ~0xFF;
+    GPIO_PORTB_DEN_R |= 0xFF;
+    GPIO_PORTB_DR8R_R |= 0xFF;
+}
+
+void Write_Command(unsigned char LCD_Comment){
+    GPIO_PORTA_DATA_R &= ~(RS+RW+E);     //RS=0,RW=0,E=0
+    GPIO_PORTB_DATA_R = LCD_Comment;         //Write Command
+    GPIO_PORTA_DATA_R |= E;                  //RS=0,RW=0,E=1
+    GPIO_PORTA_DATA_R &= ~(RS+RW);
+   // SysTick_Delay(19);                       //Enable width 230 ns
+    for(int i=0;i<19000;i++);
+    GPIO_PORTA_DATA_R &= ~(RS+RW+E);     //RS=0,RW=0,E=0
+    //SysTick_Delay1ms(1);                     //Delay 1 ms
+}
+
+void Write_Data(unsigned char LCD_Data){
+    GPIO_PORTB_DATA_R = LCD_Data;            //Write Data
+    GPIO_PORTA_DATA_R |= RS+E;               //RS=1,RW=0,E=1
+    GPIO_PORTA_DATA_R &= ~RW;
+   // SysTick_Delay(19);                       //Enable width 230 ns
+    for(int i=0;i<19000;i++);
+    GPIO_PORTA_DATA_R &= ~(RS+RW+E);     //RS=0,RW=0,E=0
+    //SysTick_Delay1ms(1);                     //Delay 1 ms
+    for(int i=0;i<1000;i++);
+
+}
+void LCD1602_Init(){
+    GPIO_PortAB_Init();
+    SysTick_Delay1ms(15);                    //Delay 15ms
+    Write_Command(0x38);
+    SysTick_Delay1ms(5);                     //Delay 5ms
+    Write_Command(0x38);
+  //  SysTick_Delay1us(150);                   //Delay 150us
+    for(int i=0;i<15000;i++);
+
+    Write_Command(0x0C);
+    Write_Command(0x01);
+    Write_Command(0x06);
+
+    SysTick_Delay1ms(50);                    //Delay 50ms
+}
+void LCD1602_Clear1(int counter_1,int counter_2,int counter_4,int counter_5){
+	/*counter_1=0;
+    counter_2=0;
+    counter_4=0;
+    counter_5=0;*/
+	Write_Command(0x01);
+}
+void LCD1602_Clear(){
+    Write_Command(0x01);
+}
+
+/*
+void Reset(int c,int i){
+	CMDPORT = ((CMDPORT & ~(1<<i)) | (c<<i));
+}
+*/
+
+void LCD1602_DisplayString(unsigned char *str){
+    while(*str != 0){
+        Write_Data(*str++);
+    }
+}
+
+void LCD1602_DisplayChar(unsigned char CHAR){
+    Write_Data(CHAR);
+}
+
+void LCD1602_DisplayDec(unsigned int number){
+    if(number >=10){
+        LCD1602_DisplayDec(number/10);
+        number = number%10;
+    }
+    LCD1602_DisplayChar(number+'0');
+}
+void LCD1602_DisplayPosition(unsigned char Line,unsigned int digit){
+    Write_Command(Line + digit);
+}
+
+ void init_port_C() {
+ volatile unsigned long tmp; // bu degisken gecikme yapmak icin gerekli
+ SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOC; // Port F’nin saatini aktifleþtir
+ tmp = SYSCTL_RCGCGPIO_R; // Saatin baþlamasý için gecikme
+ GPIO_PORTC_AMSEL_R &= ~0xE0;
+ GPIO_PORTC_DIR_R |= 0x00; // PF4,PF0 giriþ, PF3-1 çýkýþ
+ //GPIO_PORTC_PUR_R = 0xF0; // PF0 ve PF4 üzerindeki pull-up direncini aktifleþtir
+ GPIO_PORTC_AFSEL_R &= ~0x0F; // PD 3,2,1,0 pinlerini alternatif fonksinunu 0 yap
+ GPIO_PORTC_DEN_R |= 0xFF; // PF4-0 digital I/O aktifleþtir
+}
+ void init_port_E() {
+ volatile unsigned long delay;
+ SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOE; // Port D’yi aktiflestir
+ delay = SYSCTL_RCGC2_R; // Saatin baþlamasý için gecikme
+ GPIO_PORTE_AMSEL_R &= ~0xE0;
+ GPIO_PORTE_DIR_R |= 0x00; // PD 3,2,1,0 pinlerini cikis yap
+ //GPIO_PORTE_PUR_R = 0x0F; // PF0 ve PF4 üzerindeki pull-up direncini aktifleþtir
+ GPIO_PORTE_AFSEL_R &= ~0x0F; // PD 3,2,1,0 pinlerini alternatif fonksinunu 0 yap
+ GPIO_PORTE_DEN_R |= 0xFF; // PD 3,2,1,0 pinlerini aktiflestir
+ }
+
+void PLL_Init80MHZ(void);
+
+void PLL_Init80MHZ(void)
+{
+    SYSCTL_RCC2_R |=  0x80000000;
+    SYSCTL_RCC2_R |=  0x00000800;
+    SYSCTL_RCC_R = (SYSCTL_RCC_R &~0x000007C0)
+                 + 0x00000540;
+    SYSCTL_RCC2_R &= ~0x00000070;
+    SYSCTL_RCC2_R &= ~0x00002000;
+    SYSCTL_RCC2_R |= 0x40000000;
+    SYSCTL_RCC2_R = (SYSCTL_RCC2_R&~ 0x1FC00000)
+                  + (4<<22);
+    while((SYSCTL_RIS_R&0x00000040)==0){};
+    SYSCTL_RCC2_R &= ~0x00000800;
+}
+void SysTick_Init(void);
+
+
+void SysTick_Delay(unsigned long delay);
+
+void SysTick_Delay1us(unsigned long delay);
+
+void SysTick_Delay1ms(unsigned long delay);
+
+void SysTick_Init(void){
+    NVIC_ST_CTRL_R = 0;
+    NVIC_ST_CTRL_R = 0x00000005;
+}
+
+void SysTick_Delay(unsigned long delay){
+    NVIC_ST_RELOAD_R = delay-1;
+    NVIC_ST_CURRENT_R = 0;
+    while((NVIC_ST_CTRL_R&0x00010000)==0){
+    }
+}
+
+void SysTick_Delay1us(unsigned long delay){
+    unsigned long i;
+    for(i=0; i<delay; i++)    {
+       SysTick_Delay(80);                 // wait 1us
+    }
+}
+
+void SysTick_Delay1ms(unsigned long delay){
+    unsigned long i;
+    for(i=0; i<delay; i++)    {
+       SysTick_Delay(16000);              // wait 1ms
+    }
+}
+unsigned char msg1[] ="Girilen:";
+unsigned char *msg[] = {msg1};
+unsigned char nokta[] =".";
+unsigned char *nn[] = {nokta};
+
+int main(void){
+    unsigned int bir=0,iki=4,uc=1,dort=1,counter_1=0,counter_6=0;
+    int counter_2=0,counter_3=0,counter_4=0,counter_5=0,kontrol=0,kontrol2=0;
+    int button_1,button_2;
+    int button_3,button_4;
+    int button_5,button_6, button_7;
+    PLL_Init80MHZ();
+    SysTick_Init();
+    LCD1602_Init();
+    init_port_C();
+    init_port_E();
+    LCD1602_DisplayPosition(LINE1,0);
+    LCD1602_DisplayString(msg[0]);
+
+    //SysTick_Delay1ms(1000);
+   // SysTick_Delay1ms(1000);
+    SysTick_Delay1ms(1000);
+
+  while(1)
+    {
+	  button_1= GPIO_PORTC_DATA_R & 0b00010000; // sagdaki buttonun degerini oku, degiskene degerini ata
+	  button_2= GPIO_PORTC_DATA_R & 0b00100000; // soldaki buttonun degerini oku, degiskene degerini ata
+	  button_3= GPIO_PORTC_DATA_R & 0b01000000; // sagdaki buttonun degerini oku, degiskene degerini ata
+	  button_4= GPIO_PORTE_DATA_R & 0b00010; // soldaki buttonun degerini oku, degiskene degerini ata
+	  button_5= GPIO_PORTE_DATA_R & 0b00100; // sagdaki buttonun degerini oku, degiskene degerini ata
+	  button_6= GPIO_PORTE_DATA_R & 0b01000; // soldaki buttonun degerini oku, degiskene degerini ata
+	  button_7= GPIO_PORTE_DATA_R & 0b10000; // soldaki buttonun degerini oku, degiskene degerini ata
+	  //SysTick_Delay1ms(1000);
+
+
+	  if(kontrol2 == 1){
+		  button_7=0;
+	  }
+
+	  if(button_1==0){
+		counter_1++;
+		kontrol=0;
+		LCD1602_DisplayPosition(LINE1,11);
+		LCD1602_DisplayDec(counter_1%10);
+		SysTick_Delay1ms(1000);
+	  }
+
+	  if(button_2==0){
+		  counter_2++;
+		  kontrol=0;
+		  LCD1602_DisplayPosition(LINE1,12);
+		  LCD1602_DisplayDec(counter_2%10);
+		  SysTick_Delay1ms(1000);
+	  	  }
+
+	  if(button_3 == 0){
+		  counter_3++;
+		  kontrol=0;
+		    LCD1602_DisplayPosition(LINE1,13);
+		    LCD1602_DisplayString(nn[0]);
+		    SysTick_Delay1ms(5000);
+		    while(counter_3 >= 5){
+		    if(button_3 == 0){
+		    	SysTick_Delay1ms(1000);
+		    		LCD1602_Clear();
+		    		counter_1=0;counter_2=0;counter_3=0;counter_4=0;counter_5=0;
+		    		LCD1602_DisplayPosition(LINE1,0);
+		    			      LCD1602_DisplayString(msg[0]);
+
+		    }
+		    else{
+		    //	counter_3=0;
+		    }
+		    break;
+	  	  }
+	  }
+
+	  if(button_4 == 0){
+		  counter_4++;
+		  kontrol=0;
+		  LCD1602_DisplayPosition(LINE1,14);
+		  LCD1602_DisplayDec(counter_4%10);
+		  SysTick_Delay1ms(1000);
+	  	  }
+	  if(button_5 == 0){
+		  counter_5++;
+		  kontrol=0;
+		  LCD1602_DisplayPosition(LINE1,15);
+		  LCD1602_DisplayDec(counter_5%10);
+		  SysTick_Delay1ms(1000);
+	  	  }
+
+	  if(button_6 == 0){
+		  LCD1602_Clear();
+		  kontrol=0;
+		  counter_1=0;counter_2=0;counter_3=0;counter_4=0;counter_5=0;
+		  LCD1602_DisplayPosition(LINE1,0);
+		  	      LCD1602_DisplayString(msg[0]);
+	  	  }
+
+	  if(button_7 == 0){
+		  kontrol2=0;
+		  float para,para2;
+		  int elli_krs=0,yirmi_bs=0,on_krs=0,bes_krs=0,bir_krs=0,birlik=0,beslik=0,onluk=0,yirmilik=0;
+		  para=(counter_1*10)+(counter_2*1);
+		  para2=(counter_4*10)+(counter_5*1);
+		  if(para>=20){
+		          yirmilik=para/20;
+		          para=para-(yirmilik*20);
+		          LCD1602_DisplayPosition(LINE1,11);
+		          LCD1602_DisplayDec(para);
+		          LCD1602_DisplayPosition(LINE1,13);
+		          LCD1602_DisplayString(nn[0]);
+		          LCD1602_DisplayPosition(LINE1,14);
+		          LCD1602_DisplayDec(para2);
+		          LCD1602_DisplayPosition(LINE2,0);
+		          LCD1602_DisplayDec(yirmilik);
+		          LCD1602_DisplayPosition(LINE2,1);
+		          LCD1602_DisplayString("-yirmilik");
+		          SysTick_Delay1ms(7000);
+		          LCD1602_Clear();
+		      }
+
+		      if(para>=10){
+		          onluk=para/10;
+		          para=para-(onluk*10);
+		          LCD1602_DisplayPosition(LINE1,12);
+		          LCD1602_DisplayDec(para);
+		          LCD1602_DisplayPosition(LINE1,13);
+		          LCD1602_DisplayString(nn[0]);
+		          LCD1602_DisplayPosition(LINE1,14);
+		          LCD1602_DisplayDec(para2);
+		          LCD1602_DisplayPosition(LINE2,0);
+		          LCD1602_DisplayDec(onluk);
+		          LCD1602_DisplayPosition(LINE2,1);
+		          LCD1602_DisplayString("-onluk");
+		          SysTick_Delay1ms(7000);
+		          LCD1602_Clear();
+
+		      }
+
+		       if(para>=5){
+		          beslik=para/5;
+		          para=para-(beslik*5);
+		          LCD1602_DisplayPosition(LINE1,12);
+		          LCD1602_DisplayDec(para);
+		          LCD1602_DisplayPosition(LINE1,13);
+		          LCD1602_DisplayString(nn[0]);
+		          LCD1602_DisplayPosition(LINE1,14);
+		          LCD1602_DisplayDec(para2);
+		          LCD1602_DisplayPosition(LINE2,0);
+		          LCD1602_DisplayDec(beslik);
+		          LCD1602_DisplayPosition(LINE2,1);
+		          LCD1602_DisplayString("-beslik");
+		          SysTick_Delay1ms(7000);
+		          LCD1602_Clear();
+		      }
+
+		       if(para>=1){
+		          birlik=para/1;
+		          para=para-(birlik*1);
+		          LCD1602_DisplayPosition(LINE1,12);
+		          LCD1602_DisplayDec(para);
+		          LCD1602_DisplayPosition(LINE1,13);
+		          LCD1602_DisplayString(nn[0]);
+		          LCD1602_DisplayPosition(LINE1,14);
+		          LCD1602_DisplayDec(para2);
+		          LCD1602_DisplayPosition(LINE2,0);
+		          LCD1602_DisplayDec(birlik);
+		          LCD1602_DisplayPosition(LINE2,1);
+		          LCD1602_DisplayString("-birlik");
+		          SysTick_Delay1ms(7000);
+		          LCD1602_Clear();
+
+		      }
+		       if(para2>=50){
+		    	   elli_krs=para2/50;
+		    	   para2=para2-(elli_krs*50);
+		    	     LCD1602_DisplayPosition(LINE1,12);
+		    	     LCD1602_DisplayDec(para);
+		    	     LCD1602_DisplayPosition(LINE1,13);
+		    	     LCD1602_DisplayString(nn[0]);
+		             LCD1602_DisplayPosition(LINE1,14);
+		             LCD1602_DisplayDec(para2);
+		    	     LCD1602_DisplayPosition(LINE2,0);
+		    	     LCD1602_DisplayDec(elli_krs);
+		    	     LCD1602_DisplayPosition(LINE2,1);
+		    	     LCD1602_DisplayString("-yarimlik");
+		    	     SysTick_Delay1ms(7000);
+		    	     LCD1602_Clear();
+		       }
+		       if(para2>=25){
+		    	   yirmi_bs=para2/25;
+		    	   para2=para2-(yirmi_bs*25);
+		    	     LCD1602_DisplayPosition(LINE1,12);
+		             LCD1602_DisplayDec(para);
+		             LCD1602_DisplayPosition(LINE1,13);
+		             LCD1602_DisplayString(nn[0]);
+		             if(para2 >= 10){
+		             LCD1602_DisplayPosition(LINE1,14);
+		             LCD1602_DisplayDec(para2);}
+		             else {
+		             LCD1602_DisplayPosition(LINE1,14);
+		    	     LCD1602_DisplayDec(0);
+		             LCD1602_DisplayPosition(LINE1,15);
+		    	     LCD1602_DisplayDec(para2);}
+		             LCD1602_DisplayPosition(LINE2,0);
+		             LCD1602_DisplayDec(yirmi_bs);
+		             LCD1602_DisplayPosition(LINE2,1);
+		             LCD1602_DisplayString("-ceyreklik");
+		             SysTick_Delay1ms(7000);
+		         	LCD1602_Clear();
+		       }
+		       if(para2>=10){
+		    	   on_krs=para2/10;
+		    	   para2=para2-(on_krs*10);
+		    	     LCD1602_DisplayPosition(LINE1,12);
+		    	     LCD1602_DisplayDec(para);
+		    	     LCD1602_DisplayPosition(LINE1,13);
+		    	     LCD1602_DisplayString(nn[0]);
+		    	     LCD1602_DisplayPosition(LINE1,14);
+		    	     LCD1602_DisplayDec(0);
+		             LCD1602_DisplayPosition(LINE1,15);
+		             LCD1602_DisplayDec(para2);
+		    	     LCD1602_DisplayPosition(LINE2,0);
+		    	     LCD1602_DisplayDec(on_krs);
+		             LCD1602_DisplayPosition(LINE2,1);
+		    	     LCD1602_DisplayString("-metelik");
+		             SysTick_Delay1ms(7000);
+		         	LCD1602_Clear();
+
+		       }
+		       if(para2>=5){
+		    	   bes_krs=para2/5;
+		    	   para2=para2-(bes_krs*0.05);
+		    	     LCD1602_DisplayPosition(LINE1,12);
+		    	     LCD1602_DisplayDec(para);
+		    	     LCD1602_DisplayPosition(LINE1,13);
+		    	     LCD1602_DisplayString(nn[0]);
+		    	     LCD1602_DisplayPosition(LINE1,14);
+		    	     LCD1602_DisplayDec(0);
+		    	     LCD1602_DisplayPosition(LINE1,15);
+		             LCD1602_DisplayDec(para2);
+		    	     LCD1602_DisplayPosition(LINE2,0);
+		    	     LCD1602_DisplayDec(bes_krs);
+		    	     LCD1602_DisplayPosition(LINE2,1);
+		    	     LCD1602_DisplayString("-delik");
+		             SysTick_Delay1ms(7000);
+		         	LCD1602_Clear();
+		       }
+
+		       if(para2>=1){
+		          bir_krs=para2/1;
+		          LCD1602_DisplayPosition(LINE1,12);
+		          LCD1602_DisplayDec(para);
+		          LCD1602_DisplayPosition(LINE1,13);
+		          LCD1602_DisplayString(nn[0]);
+		          LCD1602_DisplayPosition(LINE1,14);
+		          LCD1602_DisplayDec(0);
+		          LCD1602_DisplayPosition(LINE1,15);
+		          LCD1602_DisplayDec(para2);
+		          LCD1602_DisplayPosition(LINE2,0);
+		          LCD1602_DisplayDec(bir_krs);
+		          LCD1602_DisplayPosition(LINE2,1);
+		          LCD1602_DisplayString("-kurusluk");
+		          SysTick_Delay1ms(7000);
+
+		      }
+
+	  	  }
+		 kontrol++;
+	  if(kontrol==4000000){
+		  kontrol2=1;
+	  }
+    }}
+

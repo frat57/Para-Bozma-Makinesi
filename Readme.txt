@@ -1,0 +1,1 @@
+Bu kodlar Tiva geliþtirme kartý üzerinden aktif edilir. Sanal makine yardýmýyla çalýþtýrýnýz.
